@@ -63,3 +63,14 @@ User must ensure setCalibrationParameters has been called before this function, 
 
 Returns temperature, as calibrated, in degrees celsius.
 
+
+GPIO Lines
+-----------
+1. Relay control closing built-in heater circuit.  Automatically opens at fixed temperature of 85C (check?) - LOW ACTIVE
+2. Theriostor control for driving secondary heating stage.  Max safe duty cycle 70% - HIGH ACTIVE
+3. Pump switch - HIGH ACTIVE
+4. Valve -- seems important, HIGH ACTIVE
+
+Input Lines (ADC)
+----------------
+1. Thermister on block (CALIBRATION DATA TO FOLLOW)
