@@ -1,3 +1,11 @@
+/*  Base library for the WiBean microcontroller
+
+This code controls 4 things via GPIO.
+1. Built-in heater relay
+2. Secondary theristor circuit
+3. Water Pump
+4. Mystery Valve
+
 /*
   Modified Arduino Yun Bridge example
 
@@ -26,17 +34,36 @@
 #include <YunServer.h>
 #include <YunClient.h>
 
+//#include <heaterCode.ino>
+//#include <thermistorCode.ino>
+
 // Listen on default port 5555, the webserver on the Yun
 // will forward there all the HTTP requests for us.
 YunServer server;
 
+
+
+// WATER PUMP IS HIGH_ACTIVE
+int const WATER_PUMP_PIN = 10;
+// VALVE IS HIGH_ACTIVE
+int const VALVE_CONTROL_PIN = 11;
+
+
+bool _requestPumpOn = false;
+
 void setup() {
+  // Console
+  Serial.begin(9600);
+  
   // Bridge startup
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
   Bridge.begin();
   digitalWrite(13, HIGH);
-
+  
+  setupPins();
+  everythingOff();
+  
   // Listen for incoming connection only from localhost
   // (no one from the external network could connect)
   server.listenOnLocalhost();
@@ -46,38 +73,106 @@ void setup() {
 void loop() {
   // Get clients coming from server
   YunClient client = server.accept();
-
   // There is a new client?
   if (client) {
-    // Process request
     process(client);
-
     // Close connection and free resources.
     client.stop();
   }
+  
+  heatingLoop();
+  delay(100); // Poll every 50ms
+};
 
-  delay(50); // Poll every 50ms
-}
+void setupPins(void)
+{
+  setupHeaterPins();
+  pinMode(WATER_PUMP_PIN, OUTPUT);
+  pinMode(VALVE_CONTROL_PIN, OUTPUT);
+};
+
+void disableWaterPump(void)
+{
+  digitalWrite(WATER_PUMP_PIN, LOW);
+};
+void enableWaterPump(void)
+{
+  digitalWrite(WATER_PUMP_PIN, HIGH);
+};
+
+void closeValve(void)
+{ 
+  digitalWrite(VALVE_CONTROL_PIN, LOW);
+};
+void openValve(void)
+{ 
+  digitalWrite(VALVE_CONTROL_PIN, HIGH);
+};
+
+void everythingOff(void)
+{
+  stopHeatingLoop();
+  disableHeat();
+  disableWaterPump();
+  closeValve();
+};
+
+
+void readAndDisplayThermometer(YunClient client)
+{
+  client.print(F("thermometerTemperatureInCelsius: "));
+  client.println( readThermometerInCelsius() );
+};
+
+
+void heatCommand(YunClient client)
+{
+  float tempInCelsius = client.parseFloat();
+  Serial.print(F("requestedHeatTo: ")); Serial.println(tempInCelsius);
+  if( startHeatingLoopForTemperature(tempInCelsius) ) {
+    readAndDisplayThermometer(client); // return current thermo temp
+  }
+  else {
+    client.print(F("Invalid heater command.  Requested temperature: "));
+    client.println(tempInCelsius);
+  }
+};
+
 
 void process(YunClient client) {
   // read the command
   String command = client.readStringUntil('/');
-
+  String lower = command; lower.toLowerCase();
+  if( (lower == "stop") || (lower == "off") ) {
+    everythingOff();
+  }
+  else if( command == "thermometer" ) {
+    readAndDisplayThermometer(client);
+  }
+  else if( command == "heat" ) {
+    heatCommand(client);
+  }
+  else if( command == "cycleProgram" ) {
+    //cycleProgram(client);
+  }
   // is "digital" command?
-  if (command == "digital") {
+  else if (command == "digital") {
     digitalCommand(client);
   }
-
   // is "analog" command?
-  if (command == "analog") {
+  else if (command == "analog") {
     analogCommand(client);
   }
-
   // is "mode" command?
-  if (command == "mode") {
+  else if (command == "mode") {
     modeCommand(client);
   }
-}
+  else {
+    client.print(F( "Unknown command: "));
+    client.println(command);
+  }
+};
+
 
 void digitalCommand(YunClient client) {
   int pin, value;
