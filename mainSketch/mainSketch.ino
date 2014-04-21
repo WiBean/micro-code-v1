@@ -6,23 +6,31 @@ This code controls 4 things via GPIO.
 3. Water Pump
 4. Mystery Valve
 
-/*
-  Modified Arduino Yun Bridge example
 
- This example for the Arduino Yun shows how to use the
- Bridge library to access the digital and analog pins
- on the board through REST calls. It demonstrates how
- you can create your own API when using REST style
- calls through the browser.
-
- Possible commands created in this shetch:
+ Possible commands created in this sketch:
 
  * "/arduino/digital/13"     -> digitalRead(13)
  * "/arduino/digital/13/1"   -> digitalWrite(13, HIGH)
  * "/arduino/analog/2/123"   -> analogWrite(2, 123)
  * "/arduino/analog/2"       -> analogRead(2)
- * "/arduino/mode/13/input"  -> pinMode(13, INPUT)
- * "/arduino/mode/13/output" -> pinMode(13, OUTPUT)
+
+ * "/arduino/thermometer/0"  -> reads and writes thermo to output (any argument as the 0 will do)
+
+ * "/arduino/heat/34.5"      -> will turn the heat on and maintain the temperature at 34.5C
+ 
+ * "/arduino/stop/0"
+ * "/arduino/off/0"          -> both of these commands will turn everything off, including heat and
+                                pump.  The argument given after the stop or off can be anything.
+ 
+ * "/arduino/pump/on1/off1/on2/off2/on3/off3/onN/offN"
+                             -> This command will turn the pump on and off in the order given above.
+                                Time is given in units of 100ms.  So a value of 10 -> 1000ms.
+                                Minimum steps is a single ON time.
+                                Maximum on/off pairs is 5 (10 arguments).
+                                Minimum time value is 2.
+                                Maximum time value is 300.
+                                If any value is non-conforming, the program will not execute.
+                                See the pumpControl file for more information.
 
  This example code is part of the public domain
 
@@ -41,21 +49,16 @@ This code controls 4 things via GPIO.
 // will forward there all the HTTP requests for us.
 YunServer server;
 
+int const MAX_PUMP_STEPS = 5;
 
 
-// WATER PUMP IS HIGH_ACTIVE
-int const WATER_PUMP_PIN = 10;
 // VALVE IS HIGH_ACTIVE
 int const VALVE_CONTROL_PIN = 11;
-
-
-bool _requestPumpOn = false;
 
 void setup() {
   // Console
   Serial.begin(9600);
-  
-  // Bridge startup
+  // Bridge startup (13, is the LED)
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
   Bridge.begin();
@@ -63,7 +66,6 @@ void setup() {
   
   setupPins();
   everythingOff();
-  
   // Listen for incoming connection only from localhost
   // (no one from the external network could connect)
   server.listenOnLocalhost();
@@ -79,25 +81,16 @@ void loop() {
     // Close connection and free resources.
     client.stop();
   }
-  
+  pumpLoop();
   heatingLoop();
-  delay(100); // Poll every 50ms
+  delay(50); // Poll every 50ms
 };
 
 void setupPins(void)
 {
   setupHeaterPins();
-  pinMode(WATER_PUMP_PIN, OUTPUT);
+  setupPumpPins();
   pinMode(VALVE_CONTROL_PIN, OUTPUT);
-};
-
-void disableWaterPump(void)
-{
-  digitalWrite(WATER_PUMP_PIN, LOW);
-};
-void enableWaterPump(void)
-{
-  digitalWrite(WATER_PUMP_PIN, HIGH);
 };
 
 void closeValve(void)
@@ -112,8 +105,7 @@ void openValve(void)
 void everythingOff(void)
 {
   stopHeatingLoop();
-  disableHeat();
-  disableWaterPump();
+  resetPump();
   closeValve();
 };
 
@@ -139,6 +131,12 @@ void heatCommand(YunClient client)
 };
 
 
+void pumpCommand(YunClient client)
+{
+  //prepCycleProgram(arg, arg, arg);
+};
+
+
 void process(YunClient client) {
   // read the command
   String command = client.readStringUntil('/');
@@ -152,9 +150,12 @@ void process(YunClient client) {
   else if( command == "heat" ) {
     heatCommand(client);
   }
-  else if( command == "cycleProgram" ) {
+  else if( command == "pump" ) {
     //cycleProgram(client);
+    pumpCommand(client);
   }
+  
+  // ARDUINO STOCK FUNCTIONS
   // is "digital" command?
   else if (command == "digital") {
     digitalCommand(client);
@@ -163,16 +164,15 @@ void process(YunClient client) {
   else if (command == "analog") {
     analogCommand(client);
   }
-  // is "mode" command?
-  else if (command == "mode") {
-    modeCommand(client);
-  }
   else {
     client.print(F( "Unknown command: "));
     client.println(command);
   }
 };
 
+// *******************************
+// BEGIN STOCK ARDUINO FUNCTIONS
+// *******************************
 
 void digitalCommand(YunClient client) {
   int pin, value;
@@ -243,40 +243,6 @@ void analogCommand(YunClient client) {
   }
 }
 
-void modeCommand(YunClient client) {
-  int pin;
-
-  // Read pin number
-  pin = client.parseInt();
-
-  // If the next character is not a '/' we have a malformed URL
-  if (client.read() != '/') {
-    client.println(F("error"));
-    return;
-  }
-
-  String mode = client.readStringUntil('\r');
-
-  if (mode == "input") {
-    pinMode(pin, INPUT);
-    // Send feedback to client
-    client.print(F("Pin D"));
-    client.print(pin);
-    client.print(F(" configured as INPUT!"));
-    return;
-  }
-
-  if (mode == "output") {
-    pinMode(pin, OUTPUT);
-    // Send feedback to client
-    client.print(F("Pin D"));
-    client.print(pin);
-    client.print(F(" configured as OUTPUT!"));
-    return;
-  }
-
-  client.print(F("error: invalid mode "));
-  client.print(mode);
-}
-
-
+// ***************************
+// END STOCK ARDUINO COMMANDS
+// ***************************

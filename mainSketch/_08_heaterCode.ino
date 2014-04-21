@@ -1,4 +1,14 @@
+/*
+// This file contains the heating related code.
+// It functions off the basic loop heatingLoop().  Start with
+// this code.
+// Functionality of note:
+// - Logic controlled use of the relay OR thyristor for heating
+// - Absolute safety temperature cutoff
+// - The heat is activated while pumping as this rapidly removes
+// heat from the block.
 
+*/
 
 
 // HEATER RELAY is LOW_ACTIVE
@@ -77,21 +87,17 @@ void stopHeatingLoop(void)
 {
   startHeatingLoopForTemperature(SAFETY_GOAL_TEMPERATURE_CELSIUS);
   _requestHeatingOn = false;
+  disableHeat(); // this should be taken care of in the loop, extra safety call
 };
 void heatingLoop(void)
 {
   float const currentTempInCelsius = readThermometerInCelsius();
   if( _requestHeatingOn && (currentTempInCelsius < SAFETY_TEMPERATURE_ABSOLUTE_MAXIMUM_CELSIUS) ) {
-    if( _requestPumpOn ) {
-      // we want to turn heat on because water going through head will quickly kill heat
-      enableHeat();
-      return;
-    }
-    // if we actually need to heat
-    if( currentTempInCelsius < _goalTempCutInCelsius ) {
+    // if we need to heat, or are pumping (water going through head will quickly kill heat)
+    if( _requestPumpOn || (currentTempInCelsius < _goalTempCutInCelsius) ) {
       // as the main heater is controlled by a relay, we can't switch it all the time.
-      // so to save some duty cycle on the theristor, we use the main relay to get to a basic
-      // "operating" temp, and then use the theristor to drive to the goal temperature
+      // so to save some duty cycle on the thyristor, we use the main relay to get to a basic
+      // "operating" temp, and then use the thyristor to drive to the goal temperature
       if( currentTempInCelsius < _heaterRelayCutCelsius ) {
         enableHeaterRelay();
         disableTheristor();
