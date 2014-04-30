@@ -8,20 +8,21 @@ This code controls 4 things via GPIO.
 
 
  Possible commands created in this sketch:
-
- * "/arduino/digital/13"     -> digitalRead(13)
  * "/arduino/digital/13/1"   -> digitalWrite(13, HIGH)
- * "/arduino/analog/2/123"   -> analogWrite(2, 123)
  * "/arduino/analog/2"       -> analogRead(2)
 
  * "/arduino/thermometer/0"  -> reads and writes thermo to output (any argument as the 0 will do)
-
  * "/arduino/heat/34.5"      -> will turn the heat on and maintain the temperature at 34.5C
  
  * "/arduino/stop/0"
  * "/arduino/off/0"          -> both of these commands will turn everything off, including heat and
                                 pump.  The argument given after the stop or off can be anything.
- 
+ * "/arduino/reset/0"        -> resets to default state.  This means the relay is CLOSED, and the
+                                theristor is off.  Heating control is off.
+                                
+ * "/arduino/isControllingHeat/0" -> will respond with boolean 1 or 0 whether the heating control
+                                loop is active.  Argument after the action word is discarded.
+                                
  * "/arduino/pump/on1/off1/on2/off2/on3/off3/onN/offN"
                              -> This command will turn the pump on and off in the order given above.
                                 Time is given in units of 100ms.  So a value of 10 -> 1000ms.
@@ -55,6 +56,44 @@ int const MAX_PUMP_STEPS = 5;
 // VALVE IS HIGH_ACTIVE
 int const VALVE_CONTROL_PIN = 11;
 
+
+// UTILITIES
+void printArray(YunClient & client, short numel, int* array)
+{
+  client.print('[');
+  for(short k=0;k<numel-1;++k) {
+    client.print(array[k]);
+    client.print(", ");
+  }
+  client.print(array[numel-1]);
+  client.println("]");
+}
+
+void printArray(short numel, int* array)
+{
+  Serial.print('[');
+  for(short k=0;k<numel-1;++k) {
+    Serial.print(array[k]);
+    Serial.print(", ");
+  }
+  Serial.print(array[numel-1]);
+  Serial.println("]");
+}
+void printArray(short numel, unsigned long* array)
+{
+  Serial.print('[');
+  for(short k=0;k<numel-1;++k) {
+    Serial.print(array[k]);
+    Serial.print(", ");
+  }
+  Serial.print(array[numel-1]);
+  Serial.println("]");
+}
+
+
+
+// CODE
+// *****
 void setup() {
   // Console
   Serial.begin(9600);
@@ -66,6 +105,7 @@ void setup() {
   
   setupPins();
   everythingOff();
+  stopHeatingLoop(false);
   // Listen for incoming connection only from localhost
   // (no one from the external network could connect)
   server.listenOnLocalhost();
@@ -104,7 +144,7 @@ void openValve(void)
 
 void everythingOff(void)
 {
-  stopHeatingLoop();
+  stopHeatingLoop(true);
   resetPump();
   closeValve();
 };
@@ -131,9 +171,36 @@ void heatCommand(YunClient client)
 };
 
 
-void pumpCommand(YunClient client)
+bool takeIntIf(YunClient & client, int & dest)
 {
-  //prepCycleProgram(arg, arg, arg);
+  if (client.read() == '/') {
+    dest = client.parseInt();
+    return true;
+  }
+  else {
+    return false;
+  }
+};
+
+
+void pumpCommand(YunClient & client)
+{
+  int onFor[MAX_PUMP_STEPS] = {0,0,0,0,0};
+  int offFor[MAX_PUMP_STEPS] = {0,0,0,0,0};
+  
+  short currentIndex = 0;
+  onFor[currentIndex] = client.parseInt();
+  if( takeIntIf(client, offFor[currentIndex]) ) {
+    ++currentIndex;
+    for(;currentIndex < MAX_PUMP_STEPS; ++currentIndex) {
+      if( !takeIntIf(client, onFor[currentIndex]) || !takeIntIf(client, offFor[currentIndex]) ) {
+        break;
+      }
+    }
+  }
+  printArray(client, MAX_PUMP_STEPS, onFor);
+  printArray(client, MAX_PUMP_STEPS, offFor);
+  prepCycleProgram(MAX_PUMP_STEPS, onFor, offFor);
 };
 
 
@@ -143,6 +210,12 @@ void process(YunClient client) {
   String lower = command; lower.toLowerCase();
   if( (lower == "stop") || (lower == "off") ) {
     everythingOff();
+    client.println(F("STOP REQUESTED!"));
+  }
+  else if( command == "reset" ) {
+    everythingOff();
+    stopHeatingLoop(false);
+    client.println(F("RESET REQUESTED!"));
   }
   else if( command == "thermometer" ) {
     readAndDisplayThermometer(client);
@@ -153,6 +226,9 @@ void process(YunClient client) {
   else if( command == "pump" ) {
     //cycleProgram(client);
     pumpCommand(client);
+  }
+  else if( command == "isControllingHeat" ) {
+    client.println(isHeating());
   }
   
   // ARDUINO STOCK FUNCTIONS
@@ -176,26 +252,19 @@ void process(YunClient client) {
 
 void digitalCommand(YunClient client) {
   int pin, value;
-
   // Read pin number
   pin = client.parseInt();
-
   // If the next character is a '/' it means we have an URL
   // with a value like: "/digital/13/1"
   if (client.read() == '/') {
     value = client.parseInt();
     digitalWrite(pin, value);
   }
-  else {
-    value = digitalRead(pin);
-  }
-
   // Send feedback to client
   client.print(F("Pin D"));
   client.print(pin);
   client.print(F(" set to "));
   client.println(value);
-
   // Update datastore key with the current pin value
   String key = "D";
   key += pin;
@@ -204,32 +273,19 @@ void digitalCommand(YunClient client) {
 
 void analogCommand(YunClient client) {
   int pin, value;
-
   // Read pin number
   pin = client.parseInt();
-
   // If the next character is a '/' it means we have an URL
   // with a value like: "/analog/5/120"
   if (client.read() == '/') {
     // Read value and execute command
-    value = client.parseInt();
-    analogWrite(pin, value);
-
-    // Send feedback to client
-    client.print(F("Pin D"));
-    client.print(pin);
-    client.print(F(" set to analog "));
-    client.println(value);
-
-    // Update datastore key with the current pin value
-    String key = "D";
-    key += pin;
+    /*
     Bridge.put(key, String(value));
+    */
   }
   else {
     // Read analog pin
     value = analogRead(pin);
-
     // Send feedback to client
     client.print(F("Pin A"));
     client.print(pin);
