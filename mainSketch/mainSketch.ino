@@ -33,10 +33,6 @@ This code controls 4 things via GPIO.
                                 If any value is non-conforming, the program will not execute.
                                 See the pumpControl file for more information.
 
- This example code is part of the public domain
-
- http://arduino.cc/en/Tutorial/Bridge
-
  */
 
 #include <Bridge.h>
