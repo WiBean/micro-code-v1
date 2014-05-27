@@ -34,12 +34,9 @@ This code controls 4 things via GPIO.
                                 Maximum time value is 300.
                                 If any value is non-conforming, the program will not execute.
                                 See the pumpControl file for more information.
-<<<<<<< HEAD
 * "/arduino/version/0"       -> This command returns the current version of the microcontroller
                                 firmware.  This command can be used to check if the unit is alive
                                 and ready for commands.
-=======
->>>>>>> 9d87ff37c9ea03cf5ffc7fae73899d4375b5e396
 
  */
 
