@@ -27,8 +27,9 @@ float linearSearch(int const*const inputs, int const*const outputs, int input)
   float first, second;
   if( pgm_read_word(&inputs[0]) < input ) {
     Serial.print(F("linSearch LOW_BOUND output: "));
-    Serial.println(pgm_read_word(&outputs[0]));
-    return pgm_read_word(&outputs[0]);
+    Serial.println(input);
+    Serial.println((int)pgm_read_word(&outputs[0]));
+    return (int)pgm_read_word(&outputs[0]);
   }
   for(int k=1;k<LUT_SIZE;++k)
   {
@@ -37,7 +38,7 @@ float linearSearch(int const*const inputs, int const*const outputs, int input)
       //Serial.print(k);
       //Serial.print(F(" output: "));
       //Serial.println(pgm_read_word(&outputs[k-1]));
-      return pgm_read_word(&outputs[k]);
+      return (int)pgm_read_word(&outputs[k]);
     }
     else if( pgm_read_word(&inputs[k]) < input ) {
       // Dumb Return

@@ -11,16 +11,18 @@ This code controls 4 things via GPIO.
  * "/arduino/digital/13/1"   -> digitalWrite(13, HIGH)
  * "/arduino/analog/2"       -> analogRead(2)
 
- * "/arduino/thermometer/0"  -> reads and writes thermo to output (any argument as the 0 will do)
- * "/arduino/heat/34.5"      -> will turn the heat on and maintain the temperature at 34.5C
- 
+ * "/arduino/thermometer/0"  -> Reads and writes thermo to output (any argument as the 0 will do)
+ * "/arduino/heat/34.5"      -> Will turn the heat on and maintain the temperature at 34.5C.
+                                This command returns the current thermometer temp in C on success.
+                                On error, undefined return.
  * "/arduino/stop/0"
- * "/arduino/off/0"          -> both of these commands will turn everything off, including heat and
+ * "/arduino/off/0"          -> Both of these commands will turn everything off, including heat and
                                 pump.  The argument given after the stop or off can be anything.
+                                Returns "STOP REQUESTED!" on success.
  * "/arduino/reset/0"        -> resets to default state.  This means the relay is CLOSED, and the
                                 theristor is off.  Heating control is off.
-                                
- * "/arduino/isControllingHeat/0" -> will respond with boolean 1 or 0 whether the heating control
+ * "/arduino/isControllingHeat/0"
+                             -> will respond with boolean 1 or 0 whether the heating control
                                 loop is active.  Argument after the action word is discarded.
                                 
  * "/arduino/pump/on1/off1/on2/off2/on3/off3/onN/offN"
@@ -32,10 +34,9 @@ This code controls 4 things via GPIO.
                                 Maximum time value is 300.
                                 If any value is non-conforming, the program will not execute.
                                 See the pumpControl file for more information.
-
- This example code is part of the public domain
-
- http://arduino.cc/en/Tutorial/Bridge
+* "/arduino/version/0"       -> This command returns the current version of the microcontroller
+                                firmware.  This command can be used to check if the unit is alive
+                                and ready for commands.
 
  */
 
@@ -228,7 +229,10 @@ void process(YunClient client) {
     pumpCommand(client);
   }
   else if( command == "isControllingHeat" ) {
-    client.println(isHeating());
+    client.print(isHeating());
+  }
+  else if( command == "version" ) {
+    client.println(F("WiBean_v1_0"));
   }
   
   // ARDUINO STOCK FUNCTIONS
