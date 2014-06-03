@@ -4,7 +4,7 @@ This code controls 4 things via GPIO.
 1. Built-in heater relay
 2. Secondary theristor circuit
 3. Water Pump
-4. Mystery Valve
+4. Brew/Steam Valve
 
 
  Possible commands created in this sketch:
@@ -106,6 +106,7 @@ void setup() {
   
   setupPins();
   everythingOff();
+  openValve(); // allow brewing
   stopHeatingLoop(false);
   // Listen for incoming connection only from localhost
   // (no one from the external network could connect)
@@ -147,7 +148,7 @@ void everythingOff(void)
 {
   stopHeatingLoop(true);
   resetPump();
-  closeValve();
+  openValve(); // "high" or "open" means set for brewing, "closed" means steam /closeValve();
 };
 
 
